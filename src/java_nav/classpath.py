@@ -6,6 +6,7 @@ import sys
 
 CACHE_DIR = "target/java-nav"
 CLASSPATH_CACHE = "classpath.txt"
+DEP_SOURCES_DIR = "dep-sources"
 
 
 def _cache_dir(project_dir: str) -> str:
@@ -65,3 +66,42 @@ def resolve_classpath(project_dir: str = ".") -> str | None:
         f.write(classpath)
 
     return classpath
+
+
+def ensure_dep_sources(project_dir: str = ".") -> str | None:
+    """Unpack dependency source JARs into target/java-nav/dep-sources/.
+
+    Lazy: only runs mvn if the cache is missing or pom.xml changed.
+    Returns the path to the unpacked sources directory, or None if no Maven project.
+    """
+    project_dir = os.path.abspath(project_dir)
+    pom = os.path.join(project_dir, "pom.xml")
+    if not os.path.isfile(pom):
+        return None
+
+    dep_sources = os.path.join(_cache_dir(project_dir), DEP_SOURCES_DIR)
+
+    if not _is_stale(dep_sources, project_dir):
+        return dep_sources
+
+    result = subprocess.run(
+        [
+            "mvn",
+            "-q",
+            "dependency:unpack-dependencies",
+            "-Dclassifier=sources",
+            f"-DoutputDirectory={dep_sources}",
+            "-Dmdep.failOnMissingClassifierArtifact=false",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=project_dir,
+    )
+    if result.returncode != 0:
+        print(f"Error unpacking dependency sources:\n{result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    # Touch the directory so mtime comparison works
+    os.utime(dep_sources, None)
+
+    return dep_sources
