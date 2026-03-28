@@ -15,7 +15,7 @@ SCANNER_JAR = str(files("java_nav").joinpath("jars", "classgraph-scanner.jar"))
 def _run_scanner(mode: str, project_dir: str, classname: str) -> None:
     classpath = resolve_classpath(project_dir)
     if classpath is None:
-        print("No Maven project found.", file=sys.stderr)
+        print("No Maven project found. Try -d <project-dir>.", file=sys.stderr)
         sys.exit(1)
 
     result = subprocess.run(
@@ -24,6 +24,7 @@ def _run_scanner(mode: str, project_dir: str, classname: str) -> None:
         text=True,
     )
     if result.returncode != 0:
+        print(f"ClassGraph scan failed for {classname}:", file=sys.stderr)
         print(result.stderr, file=sys.stderr)
         sys.exit(1)
 
@@ -31,7 +32,12 @@ def _run_scanner(mode: str, project_dir: str, classname: str) -> None:
     if output:
         print(output)
     else:
-        print(f"No {mode} found for {classname}", file=sys.stderr)
+        label = "implementations" if mode == "impls" else "subclasses"
+        print(f"No {label} found for {classname}.", file=sys.stderr)
+        print(
+            "Verify the class name is fully qualified and the project is compiled.",
+            file=sys.stderr,
+        )
 
 
 @click.command()

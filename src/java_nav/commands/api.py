@@ -44,7 +44,11 @@ def api(classname: str, project_dir: str, access_level: str | None) -> None:
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(result.stderr, file=sys.stderr)
+        print(f"Class not found: {classname}", file=sys.stderr)
+        if classpath:
+            print("The class is not on the project classpath.", file=sys.stderr)
+        else:
+            print("No Maven project found. Try -d <project-dir>.", file=sys.stderr)
         sys.exit(1)
 
     print(result.stdout)

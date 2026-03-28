@@ -6,7 +6,7 @@ import sys
 
 import click
 
-from java_nav.classpath import find_dep_source, resolve_classpath
+from java_nav.classpath import find_dep_source, find_source_roots, resolve_classpath
 
 
 def _class_to_path(classname: str) -> str:
@@ -18,9 +18,9 @@ def _find_source(classname: str, project_dir: str) -> str | None:
     """Find source file in project src/ or unpacked dependency sources."""
     rel_path = _class_to_path(classname)
 
-    # Search project sources first
-    for src_root in ["src/main/java", "src/test/java"]:
-        candidate = os.path.join(project_dir, src_root, rel_path)
+    # Search all source roots (handles multi-module projects)
+    for root in find_source_roots(project_dir, include_test=True):
+        candidate = os.path.join(root, rel_path)
         if os.path.isfile(candidate):
             return candidate
 
@@ -82,10 +82,14 @@ def source(classname: str, project_dir: str, lines: str | None) -> None:
     total = len(file_lines)
     start, end = 1, total
     if lines:
-        parts = lines.split(":")
-        start = int(parts[0])
-        if len(parts) > 1:
-            end = int(parts[1])
+        try:
+            parts = lines.split(":")
+            start = int(parts[0])
+            if len(parts) > 1:
+                end = int(parts[1])
+        except ValueError:
+            print(f"Invalid line range: {lines}. Use format: 10:30", file=sys.stderr)
+            sys.exit(1)
 
     if start == 1 and end == total:
         print(f"// {path}")

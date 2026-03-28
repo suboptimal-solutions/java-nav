@@ -27,14 +27,20 @@ def symbols(file: str, project_dir: str) -> None:
 
     abs_path = os.path.join(project_dir, file)
     if not os.path.isfile(abs_path):
-        print(f"File not found: {abs_path}", file=sys.stderr)
+        print(f"File not found: {file}", file=sys.stderr)
+        print(
+            "Path must be relative to the project root, "
+            "e.g. src/main/java/com/example/MyClass.java",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     result = query(project_dir, "document_symbols", {"file": file})
     flat = _flatten_symbols(result)
 
     if not flat:
-        print("No symbols found.", file=sys.stderr)
+        print(f"No symbols found in {file}.", file=sys.stderr)
+        print("Ensure jdtls has finished indexing (try java-nav lsp start first).", file=sys.stderr)
         return
 
     for sym in flat:

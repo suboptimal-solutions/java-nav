@@ -9,6 +9,49 @@ CACHE_DIR = "target/java-nav"
 CLASSPATH_CACHE = "classpath.txt"
 DEP_SOURCES_DIR = "dep-sources"
 
+SRC_DIRS = ["src/main/java", "src/main/kotlin", "src/main/scala"]
+TEST_DIRS = ["src/test/java", "src/test/kotlin", "src/test/scala"]
+
+
+def find_source_roots(project_dir: str, include_test: bool = False) -> list[str]:
+    """Find all Java/Kotlin/Scala source roots in a project, including submodules.
+
+    Handles both single-module and multi-module Maven layouts.
+    """
+    project_dir = os.path.abspath(project_dir)
+    candidates = SRC_DIRS + TEST_DIRS if include_test else SRC_DIRS
+    roots = []
+
+    # Check project root
+    for src in candidates:
+        path = os.path.join(project_dir, src)
+        if os.path.isdir(path):
+            roots.append(path)
+
+    # Check submodules (one level deep: each dir with a pom.xml)
+    if not roots or _has_modules(project_dir):
+        for entry in os.listdir(project_dir):
+            subdir = os.path.join(project_dir, entry)
+            if not os.path.isdir(subdir) or entry.startswith(".") or entry == "target":
+                continue
+            if os.path.isfile(os.path.join(subdir, "pom.xml")):
+                for src in candidates:
+                    path = os.path.join(subdir, src)
+                    if os.path.isdir(path):
+                        roots.append(path)
+
+    return roots
+
+
+def _has_modules(project_dir: str) -> bool:
+    """Quick check if pom.xml declares <modules>."""
+    pom = os.path.join(project_dir, "pom.xml")
+    if not os.path.isfile(pom):
+        return False
+    with open(pom) as f:
+        # Simple text check — avoids XML parsing dependency
+        return "<modules>" in f.read()
+
 
 def _cache_dir(project_dir: str) -> str:
     return os.path.join(project_dir, CACHE_DIR)

@@ -7,7 +7,7 @@ import sys
 
 import click
 
-from java_nav.classpath import ensure_all_dep_sources
+from java_nav.classpath import ensure_all_dep_sources, find_source_roots
 
 
 def _build_cmd(pattern: str, paths: list[str]) -> list[str]:
@@ -45,24 +45,22 @@ def grep(pattern: str, project_dir: str, deps: bool, include_test: bool) -> None
     """Search Java source code for a pattern.
 
     PATTERN is a regex pattern. Uses ripgrep if available, falls back to grep.
+    Automatically discovers source directories in multi-module Maven projects.
     """
     project_dir = os.path.abspath(project_dir)
-
-    paths = [os.path.join(project_dir, "src", "main")]
-    if include_test:
-        test_dir = os.path.join(project_dir, "src", "test")
-        if os.path.isdir(test_dir):
-            paths.append(test_dir)
+    paths = find_source_roots(project_dir, include_test=include_test)
 
     if deps:
         dep_sources = ensure_all_dep_sources(project_dir)
         if dep_sources and os.path.isdir(dep_sources):
             paths.append(dep_sources)
 
-    # Filter to paths that actually exist
-    paths = [p for p in paths if os.path.isdir(p)]
     if not paths:
-        print("No source directories found.", file=sys.stderr)
+        print(
+            f"No source directories found in {project_dir}.\n"
+            "For multi-module projects, run from the root directory containing pom.xml.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     cmd = _build_cmd(pattern, paths)
@@ -71,4 +69,19 @@ def grep(pattern: str, project_dir: str, deps: bool, include_test: bool) -> None
         print(result.stdout, end="")
     if result.stderr:
         print(result.stderr, end="", file=sys.stderr)
+
+    # grep/rg exit code 1 = no matches (not an error)
+    if result.returncode == 1 and not result.stdout:
+        searched = ", ".join(
+            os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p) for p in paths
+        )
+        print(f'No matches for "{pattern}" in: {searched}', file=sys.stderr)
+        hint = ""
+        if not include_test:
+            hint += " Try --test to include test sources."
+        if not deps:
+            hint += " Try --deps to include dependency sources."
+        if hint:
+            print(hint.strip(), file=sys.stderr)
+
     sys.exit(result.returncode)

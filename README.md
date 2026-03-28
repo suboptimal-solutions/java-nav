@@ -3,8 +3,8 @@
 CLI tools for IDE-like Java navigation in AI agents.
 
 Gives AI coding agents (Claude Code, etc.) fast, accurate Java code navigation
-without requiring a running IDE. Tiered architecture: instant JDK tool wrappers
-for most queries, ClassGraph bytecode scanning for type hierarchy.
+without requiring a running IDE. Three-tier architecture: instant JDK tool wrappers,
+ClassGraph bytecode scanning for type hierarchy, and jdtls LSP for semantic queries.
 
 ## Prerequisites
 
@@ -14,6 +14,7 @@ for most queries, ClassGraph bytecode scanning for type hierarchy.
 - **Python 3.10+** — runtime for the CLI itself
 
 **Optional:**
+- **JDK 21+** — required for Tier 3 LSP commands (`refs`, `def`, `find`, `symbols`)
 - **ripgrep** (`rg`) — faster search in `grep` command; falls back to GNU `grep` if not installed
 
 ## Getting started
@@ -39,6 +40,7 @@ java-nav install-skill
 
 All commands accept `-d <path>` to specify the Maven project directory (defaults to `.`).
 All class names are fully qualified (e.g. `com.example.service.UserService`).
+Works with multi-module Maven projects — source directories are auto-discovered.
 
 ### Tier 1 — Instant commands
 
@@ -46,9 +48,8 @@ All class names are fully qualified (e.g. `com.example.service.UserService`).
 # Show public API surface of a class (project, dependency, or JDK)
 java-nav api com.example.UserService
 java-nav api java.util.List
-java-nav api --protected com.example.UserService   # include protected members
 
-# Show source code with optional line range
+# Show source code with optional line range (falls back to javap if no source JAR)
 java-nav source com.example.UserService
 java-nav source com.example.UserService -l 10:30
 
@@ -72,6 +73,29 @@ java-nav impls com.example.Repository
 java-nav subtypes com.example.AbstractProcessor
 ```
 
+### Tier 3 — Semantic queries (jdtls via multilspy)
+
+```bash
+# Find all references to a symbol (type-aware, not text search)
+java-nav refs com.example.UserService.createUser
+
+# Go to definition, show source context
+java-nav def com.example.UserService.createUser
+
+# Search symbols by name (classes, interfaces, enums)
+java-nav find Repository
+
+# List all symbols in a file with line numbers
+java-nav symbols src/main/java/com/example/service/UserService.java
+```
+
+For faster Tier 3 queries, start the daemon:
+```bash
+java-nav lsp start    # ~30s first time, then <200ms per query
+java-nav lsp status   # check daemon
+java-nav lsp stop     # shutdown
+```
+
 ### AI agent skill
 
 ```bash
@@ -83,19 +107,21 @@ java-nav install-skill --force
 ```
 
 This writes `.claude/skills/java-nav/SKILL.md` which Claude Code reads automatically,
-teaching it when and how to use each command.
+teaching it when and how to use each command — with strict rules to prevent the agent
+from falling back to grep/manual file browsing.
 
 ## Caching
 
 Expensive operations are cached in `target/java-nav/` inside your Java project:
 
-| Cache | Produced by | Invalidated when |
+| Cache | What | Invalidated when |
 |---|---|---|
-| `classpath.txt` | `mvn dependency:build-classpath` | `pom.xml` changes |
-| `dep-sources/` | `mvn dependency:unpack-dependencies` | `pom.xml` changes |
+| `classpath.txt` | Maven classpath string | `pom.xml` changes |
+| `dep-sources/` | Per-JAR extracted source files | On demand (only requested JARs) |
+| `dep-sources-all.marker` | Full dep source unpack flag | `pom.xml` changes |
+| `jdtls.pid`, `jdtls.port` | LSP daemon state | `lsp stop` or process exit |
 
-Caches are created lazily on first use and auto-invalidate when `pom.xml` is modified.
-Run `mvn clean` to clear everything.
+Caches are created lazily on first use. Run `mvn clean` to clear everything.
 
 ## Development
 
@@ -106,7 +132,9 @@ cd java-nav
 uv sync
 
 # Run tests
-uv run pytest -v
+uv run pytest -v                    # 26 unit tests (~10s)
+uv run pytest -m integration        # 20 integration tests (~3-4min)
+uv run pytest -m ''                 # all 46 tests
 
 # Lint and format
 uv run ruff check src/ tests/

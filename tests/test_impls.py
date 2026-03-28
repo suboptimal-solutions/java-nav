@@ -26,4 +26,4 @@ def test_subtypes_finds_subclasses(playground_dir):
 def test_impls_no_implementations(playground_dir):
     result = runner.invoke(main, ["impls", "-d", playground_dir, "com.example.model.User"])
     assert result.exit_code == 0
-    assert "No impls found" in result.output
+    assert "No implementations found" in result.output

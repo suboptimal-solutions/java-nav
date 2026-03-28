@@ -28,6 +28,8 @@ def find(pattern: str, project_dir: str) -> None:
 
     if not results:
         print(f"No symbols found for: {pattern}", file=sys.stderr)
+        print("Note: find searches type names (classes, interfaces, enums).", file=sys.stderr)
+        print("For text search, use: java-nav grep", file=sys.stderr)
         return
 
     for sym in results:

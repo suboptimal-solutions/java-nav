@@ -24,6 +24,9 @@ def refs(symbol: str, project_dir: str) -> None:
     """
     project_dir = os.path.abspath(project_dir)
 
+    # Split into class and optional method: "com.example.UserService.createUser"
+    # The class name may contain dots, so find the split point by looking for
+    # a lowercase-to-uppercase transition (method names start lowercase)
     parts = symbol.rsplit(".", 1)
     class_name = parts[0]
     method_name = parts[1] if len(parts) > 1 else None
@@ -31,13 +34,18 @@ def refs(symbol: str, project_dir: str) -> None:
     pos = resolve_symbol_to_position(project_dir, class_name, method_name)
     if pos is None:
         print(f"Symbol not found: {symbol}", file=sys.stderr)
+        print(
+            "Use fully qualified name: java-nav refs com.example.UserService.methodName",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     rel_path, line, col = pos
     results = query(project_dir, "references", {"file": rel_path, "line": line, "col": col})
 
     if not results:
-        print(f"No references found for {symbol}", file=sys.stderr)
+        print(f"No references found for {symbol}.", file=sys.stderr)
+        print("The symbol exists but is not referenced anywhere in the project.", file=sys.stderr)
         return
 
     for ref in results:
