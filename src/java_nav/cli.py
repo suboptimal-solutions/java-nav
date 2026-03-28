@@ -6,6 +6,7 @@ from java_nav.commands.api import api
 from java_nav.commands.deps import deps
 from java_nav.commands.grep import grep
 from java_nav.commands.impls import impls, subtypes
+from java_nav.commands.install import install_skill
 from java_nav.commands.source import source
 
 
@@ -26,5 +27,6 @@ main.add_command(api)
 main.add_command(deps)
 main.add_command(grep)
 main.add_command(impls)
+main.add_command(install_skill)
 main.add_command(source)
 main.add_command(subtypes)
