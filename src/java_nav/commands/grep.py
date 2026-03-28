@@ -7,7 +7,7 @@ import sys
 
 import click
 
-from java_nav.classpath import ensure_dep_sources
+from java_nav.classpath import ensure_all_dep_sources
 
 
 def _build_cmd(pattern: str, paths: list[str]) -> list[str]:
@@ -55,7 +55,7 @@ def grep(pattern: str, project_dir: str, deps: bool, include_test: bool) -> None
             paths.append(test_dir)
 
     if deps:
-        dep_sources = ensure_dep_sources(project_dir)
+        dep_sources = ensure_all_dep_sources(project_dir)
         if dep_sources and os.path.isdir(dep_sources):
             paths.append(dep_sources)
 

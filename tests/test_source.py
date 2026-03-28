@@ -32,6 +32,14 @@ def test_source_dependency_class(playground_dir):
     assert "package com.google.common.base" in result.output
 
 
+def test_source_falls_back_to_javap(playground_dir):
+    """When source JAR isn't available, should fall back to javap output."""
+    result = runner.invoke(main, ["source", "-d", playground_dir, "java.util.HashMap"])
+    assert result.exit_code == 0
+    assert "javap output" in result.output
+    assert "HashMap" in result.output
+
+
 def test_source_nonexistent_class(playground_dir):
     result = runner.invoke(main, ["source", "-d", playground_dir, "com.example.DoesNotExist"])
     assert result.exit_code != 0

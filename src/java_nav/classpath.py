@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import zipfile
 
 CACHE_DIR = "target/java-nav"
 CLASSPATH_CACHE = "classpath.txt"
@@ -69,11 +70,73 @@ def resolve_classpath(project_dir: str = ".") -> str | None:
     return classpath
 
 
-def ensure_dep_sources(project_dir: str = ".") -> str | None:
-    """Unpack dependency source JARs into target/java-nav/dep-sources/.
+def _find_source_jar(jar_path: str) -> str | None:
+    """Derive the -sources.jar path from a regular JAR path in ~/.m2."""
+    if not jar_path.endswith(".jar"):
+        return None
+    sources_jar = jar_path[:-4] + "-sources.jar"
+    if os.path.isfile(sources_jar):
+        return sources_jar
+    return None
 
-    Lazy: only runs mvn if the cache is missing or pom.xml changed.
-    Returns the path to the unpacked sources directory, or None if no Maven project.
+
+def find_dep_source(classname: str, project_dir: str = ".") -> str | None:
+    """Find and extract the source file for a dependency class.
+
+    Looks up the class in the classpath JARs, finds the corresponding -sources.jar,
+    extracts only that JAR (cached per-artifact), and returns the .java file path.
+    """
+    project_dir = os.path.abspath(project_dir)
+    classpath = resolve_classpath(project_dir)
+    if classpath is None:
+        return None
+
+    class_file = classname.replace(".", "/") + ".class"
+    source_file = classname.replace(".", "/") + ".java"
+    dep_sources = os.path.join(_cache_dir(project_dir), DEP_SOURCES_DIR)
+
+    # Check if already extracted
+    cached = os.path.join(dep_sources, source_file)
+    if os.path.isfile(cached):
+        return cached
+
+    # Search each JAR on the classpath for the class
+    for entry in classpath.split(":"):
+        if not entry.endswith(".jar") or not os.path.isfile(entry):
+            continue
+
+        # Quick check: does this JAR contain the class?
+        try:
+            with zipfile.ZipFile(entry) as zf:
+                if class_file not in zf.namelist():
+                    continue
+        except (zipfile.BadZipFile, OSError):
+            continue
+
+        # Found the JAR — look for its -sources.jar
+        sources_jar = _find_source_jar(entry)
+        if sources_jar is None:
+            return None  # No source JAR available for this dependency
+
+        # Extract the sources JAR (just this one artifact)
+        try:
+            with zipfile.ZipFile(sources_jar) as zf:
+                zf.extractall(dep_sources)
+        except (zipfile.BadZipFile, OSError):
+            return None
+
+        if os.path.isfile(cached):
+            return cached
+        return None
+
+    return None
+
+
+def ensure_all_dep_sources(project_dir: str = ".") -> str | None:
+    """Unpack ALL dependency source JARs into target/java-nav/dep-sources/.
+
+    Use find_dep_source() for single-class lookups (faster).
+    This is for bulk search (grep --deps) where all sources are needed.
     """
     project_dir = os.path.abspath(project_dir)
     pom = os.path.join(project_dir, "pom.xml")
@@ -81,10 +144,12 @@ def ensure_dep_sources(project_dir: str = ".") -> str | None:
         return None
 
     dep_sources = os.path.join(_cache_dir(project_dir), DEP_SOURCES_DIR)
+    marker = os.path.join(_cache_dir(project_dir), "dep-sources-all.marker")
 
-    if not _is_stale(dep_sources, project_dir):
+    if not _is_stale(marker, project_dir):
         return dep_sources
 
+    print("Unpacking all dependency sources for search (may take a moment)...", file=sys.stderr)
     result = subprocess.run(
         [
             "mvn",
@@ -102,7 +167,9 @@ def ensure_dep_sources(project_dir: str = ".") -> str | None:
         print(f"Error unpacking dependency sources:\n{result.stderr}", file=sys.stderr)
         sys.exit(1)
 
-    # Touch the directory so mtime comparison works
-    os.utime(dep_sources, None)
+    # Write marker so we know all sources are unpacked
+    os.makedirs(os.path.dirname(marker), exist_ok=True)
+    with open(marker, "w") as f:
+        f.write("done")
 
     return dep_sources

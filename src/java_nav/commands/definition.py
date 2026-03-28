@@ -41,8 +41,7 @@ def definition(symbol: str, project_dir: str) -> None:
         if os.path.isfile(abs_path):
             print(f"// {rel_path}")
             with open(abs_path) as f:
-                for i, text in enumerate(f, 1):
-                    print(f"{i:4d}  {text}", end="")
+                print(f.read(), end="")
         return
 
     # For methods, get definition via LSP to handle cross-file jumps
@@ -60,10 +59,10 @@ def definition(symbol: str, project_dir: str) -> None:
             continue
 
         # Show context around the definition (up to 20 lines)
-        print(f"// {rp}")
         with open(abs_path) as f:
             lines = f.readlines()
         begin = max(0, start_line)
         end = min(len(lines), start_line + 20)
-        for i in range(begin, end):
-            print(f"{i + 1:4d}  {lines[i]}", end="")
+        print(f"// {rp} (lines {begin + 1}-{end} of {len(lines)})")
+        for line in lines[begin:end]:
+            print(line, end="")
