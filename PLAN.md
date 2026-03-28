@@ -27,7 +27,7 @@ rg --json -tjava "\.methodName\(" src/ target/dep-sources/
 
 Ripgrep's `--json` flag outputs structured results (file, line number, match offset) perfect for AI consumption. It searches thousands of files in sub-seconds. The obvious limitation is **text matching, not type resolution** — `rg "\.save\("` returns every `.save()` call regardless of receiver type. For common method names, this produces noise. For distinctive names or class-level patterns (`implements MyInterface`, `extends BaseProcessor`), it works surprisingly well.
 
-**`mvn dependency:build-classpath`** is the foundation command that makes everything else work. It resolves the full transitive dependency tree and outputs a classpath string usable with `javap`, `jdeps`, `jshell`, and custom Java tools.
+**`mvn dependency:build-classpath`** is the foundation command that makes everything else work. It resolves the full transitive dependency tree and outputs a classpath string usable with `javap`, `jdeps`, `jshell`, and custom Java tools. The resolved classpath is **cached to `target/java-nav/classpath.txt`** so that subsequent calls are instant. The cache is invalidated automatically when `pom.xml` is newer than the cache file (mtime comparison). Storing the cache under `target/` ensures it is auto-ignored by `.gitignore` in every standard Java project and cleaned up by `mvn clean`.
 
 ---
 
@@ -128,7 +128,8 @@ The optimal design is a **three-tier shell skill** where the AI agent picks the 
 - `java-nav source com.example.UserService` → locates and cats the source file from `src/` or unpacked dependency sources
 - `java-nav grep "methodName" [--deps]` → ripgrep across project and optionally dependency sources
 - `java-nav deps com.example.UserService` → runs `jdeps` for class-level dependency graph
-- `java-nav init-sources` → runs `mvn dependency:unpack-dependencies` once to prepare searchable source tree
+
+All Tier 1 commands share a cached classpath resolved from Maven. The cache lives in `target/java-nav/classpath.txt` and auto-invalidates when `pom.xml` changes. Dependency source unpacking (`mvn dependency:unpack-dependencies`) is triggered lazily on first use of `grep --deps` or `source` for a dependency class — no separate `init-sources` step required.
 
 **Tier 2 — Fast bytecode scan (~2s):**
 - `java-nav impls com.example.MyInterface` → ClassGraph scan of compiled classpath
@@ -142,6 +143,17 @@ The optimal design is a **three-tier shell skill** where the AI agent picks the 
 
 This layered approach means **most queries complete in under a second** with zero daemon overhead, while the full power of jdtls remains available for semantic queries where text search would produce too much noise. The skill's `SKILL.md` should instruct the AI agent to prefer Tier 1 for broad exploration and Tier 3 for precise "find all callers of this specific overloaded method" queries.
 
+### Caching strategy
+
+All expensive operations cache their results under `target/java-nav/` inside the Java project directory:
+
+| Cache file | Produced by | Invalidated when |
+|---|---|---|
+| `classpath.txt` | `mvn dependency:build-classpath` | `pom.xml` mtime > cache mtime |
+| `dep-sources/` | `mvn dependency:unpack-dependencies` | `pom.xml` mtime > cache mtime |
+
+Storing caches under `target/` means they are automatically ignored by `.gitignore`, cleaned up by `mvn clean`, and scoped per-project. No user action is needed to populate or refresh caches — they are created lazily on first use and re-created when stale.
+
 ## Conclusion
 
-The Java tooling ecosystem has no single CLI tool that matches IDE navigation quality out of the box. But the building blocks exist and compose well. `javap` for API surface, ClassGraph for type hierarchy, and jdtls for semantic references cover all four capabilities with compiler-level accuracy. The key architectural insight is that **jdtls should be a persistent background daemon, not started per-query** — its 30-second+ startup is amortized to near-zero over a coding session. The lightweight tools (`javap`, ripgrep, ClassGraph) handle the majority of queries where startup latency matters. For anyone building this today, starting with multilspy as the jdtls wrapper and a 50-line ClassGraph scanner as the implementation finder, fronted by shell scripts that route queries to the appropriate tier, would yield a working system in a day or two of development.
+The Java tooling ecosystem has no single CLI tool that matches IDE navigation quality out of the box. But the building blocks exist and compose well. `javap` for API surface, ClassGraph for type hierarchy, and jdtls for semantic references cover all four capabilities with compiler-level accuracy. The key architectural insight is that **jdtls should be a persistent background daemon, not started per-query** — its 30-second+ startup is amortized to near-zero over a coding session. The lightweight tools (`javap`, ripgrep, ClassGraph) handle the majority of queries where startup latency matters. Expensive operations (classpath resolution, dependency source unpacking) are cached under `target/java-nav/` and lazily invalidated via `pom.xml` mtime — no manual setup commands needed. For anyone building this today, starting with multilspy as the jdtls wrapper and a 50-line ClassGraph scanner as the implementation finder, fronted by a Python CLI (distributed via `uvx`) that routes queries to the appropriate tier, would yield a working system in a day or two of development.

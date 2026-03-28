@@ -4,9 +4,28 @@ import os
 import subprocess
 import sys
 
+CACHE_DIR = "target/java-nav"
+CLASSPATH_CACHE = "classpath.txt"
+
+
+def _cache_dir(project_dir: str) -> str:
+    return os.path.join(project_dir, CACHE_DIR)
+
+
+def _is_stale(cache_file: str, project_dir: str) -> bool:
+    """Check if cache is stale by comparing mtime against pom.xml."""
+    if not os.path.isfile(cache_file):
+        return True
+    cache_mtime = os.path.getmtime(cache_file)
+    pom_mtime = os.path.getmtime(os.path.join(project_dir, "pom.xml"))
+    return pom_mtime > cache_mtime
+
 
 def resolve_classpath(project_dir: str = ".") -> str | None:
     """Resolve the full Maven classpath including target/classes.
+
+    Results are cached in target/java-nav/classpath.txt and invalidated
+    when pom.xml is newer than the cache.
 
     Returns a classpath string usable with javap, jdeps, java -cp, etc.
     Returns None if no Maven project is found.
@@ -15,6 +34,11 @@ def resolve_classpath(project_dir: str = ".") -> str | None:
     pom = os.path.join(project_dir, "pom.xml")
     if not os.path.isfile(pom):
         return None
+
+    cache_file = os.path.join(_cache_dir(project_dir), CLASSPATH_CACHE)
+
+    if not _is_stale(cache_file, project_dir):
+        return open(cache_file).read().strip()
 
     result = subprocess.run(
         [
@@ -34,7 +58,10 @@ def resolve_classpath(project_dir: str = ".") -> str | None:
 
     maven_cp = result.stdout.strip()
     target_classes = os.path.join(project_dir, "target", "classes")
+    classpath = f"{maven_cp}:{target_classes}" if maven_cp else target_classes
 
-    if maven_cp:
-        return f"{maven_cp}:{target_classes}"
-    return target_classes
+    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    with open(cache_file, "w") as f:
+        f.write(classpath)
+
+    return classpath
