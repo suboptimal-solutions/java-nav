@@ -22,7 +22,8 @@ def test_classpath_is_cached(playground_dir):
 
     cache_file = os.path.join(playground_dir, "target", "java-nav", "classpath.txt")
     assert os.path.isfile(cache_file)
-    assert open(cache_file).read().strip() == cp1
+    with open(cache_file) as f:
+        assert f.read().strip() == cp1
 
     # Second call reads from cache (same result)
     cp2 = resolve_classpath(playground_dir)

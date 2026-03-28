@@ -2,7 +2,6 @@ from click.testing import CliRunner
 
 from java_nav.cli import main
 
-
 runner = CliRunner()
 
 
@@ -25,7 +24,9 @@ def test_api_interface(playground_dir):
 
 
 def test_api_dependency_class(playground_dir):
-    result = runner.invoke(main, ["api", "-d", playground_dir, "com.google.common.base.Preconditions"])
+    result = runner.invoke(
+        main, ["api", "-d", playground_dir, "com.google.common.base.Preconditions"]
+    )
     assert result.exit_code == 0
     assert "checkArgument" in result.output
 

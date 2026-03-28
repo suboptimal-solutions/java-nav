@@ -6,18 +6,23 @@ runner = CliRunner()
 
 
 def test_source_project_class(playground_dir):
-    result = runner.invoke(main, ["source", "-d", playground_dir, "com.example.service.UserService"])
+    result = runner.invoke(
+        main, ["source", "-d", playground_dir, "com.example.service.UserService"]
+    )
     assert result.exit_code == 0
     assert "public class UserService" in result.output
     assert "createUser" in result.output
 
 
 def test_source_with_line_range(playground_dir):
-    result = runner.invoke(main, ["source", "-d", playground_dir, "com.example.service.UserService", "-l", "12:17"])
+    result = runner.invoke(
+        main,
+        ["source", "-d", playground_dir, "com.example.service.UserService", "-l", "12:17"],
+    )
     assert result.exit_code == 0
     assert "public class UserService" in result.output
     # Should not contain content outside the range
-    lines = [l for l in result.output.strip().splitlines() if not l.startswith("//")]
+    lines = [line for line in result.output.strip().splitlines() if not line.startswith("//")]
     assert len(lines) == 6
 
 

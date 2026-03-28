@@ -14,7 +14,9 @@ def test_deps_shows_class_dependencies(playground_dir):
 
 
 def test_deps_package_level(playground_dir):
-    result = runner.invoke(main, ["deps", "-d", playground_dir, "--package", "com.example.service.UserService"])
+    result = runner.invoke(
+        main, ["deps", "-d", playground_dir, "--package", "com.example.service.UserService"]
+    )
     assert result.exit_code == 0
     assert "UserService" in result.output
 

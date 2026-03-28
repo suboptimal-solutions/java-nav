@@ -15,7 +15,10 @@ def _build_cmd(pattern: str, paths: list[str]) -> list[str]:
     if shutil.which("rg"):
         return ["rg", "-n", "--type", "java", pattern] + paths
     return [
-        "grep", "-rn", "--include=*.java", pattern,
+        "grep",
+        "-rn",
+        "--include=*.java",
+        pattern,
     ] + paths
 
 

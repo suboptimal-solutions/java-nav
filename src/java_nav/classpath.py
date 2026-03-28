@@ -39,7 +39,8 @@ def resolve_classpath(project_dir: str = ".") -> str | None:
     cache_file = os.path.join(_cache_dir(project_dir), CLASSPATH_CACHE)
 
     if not _is_stale(cache_file, project_dir):
-        return open(cache_file).read().strip()
+        with open(cache_file) as f:
+            return f.read().strip()
 
     result = subprocess.run(
         [
