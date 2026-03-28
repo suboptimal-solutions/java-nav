@@ -42,3 +42,7 @@ select = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: integration tests against real Java projects (need git submodule init + mvn compile)",
+]
+addopts = "-m 'not integration'"
