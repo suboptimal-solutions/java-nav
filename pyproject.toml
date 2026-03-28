@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
+    "multilspy>=0.0.15",
 ]
 
 [project.scripts]

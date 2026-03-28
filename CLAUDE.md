@@ -7,8 +7,8 @@ CLI tools for IDE-like Java navigation in AI agents. Python + Click, distributed
 ```bash
 uv sync                      # install deps
 uv run pytest -v             # unit tests (25 tests, ~10s)
-uv run pytest -m integration # integration tests against spring-petclinic (12 tests, ~90s)
-uv run pytest -m ''          # all 37 tests
+uv run pytest -m integration # integration tests (12 petclinic + 8 LSP, ~3-4min)
+uv run pytest -m ''          # all 45 tests
 uv run ruff check src/ tests/   # lint
 uv run ruff format src/ tests/  # format
 ```
@@ -19,15 +19,17 @@ Three-tier design — agent picks the lightest tool for each query:
 
 - **Tier 1 (instant):** `api` (javap), `source` (file lookup), `grep` (ripgrep/grep), `deps` (jdeps)
 - **Tier 2 (~2s):** `impls`, `subtypes` (ClassGraph bytecode scan via bundled JAR)
-- **Tier 3 (not yet implemented):** LSP semantic queries via multilspy/jdtls
+- **Tier 3 (~5-15s on-demand, <200ms with daemon):** `refs`, `def`, `find`, `symbols` (jdtls via multilspy)
 
-All commands share `classpath.py:resolve_classpath()` for Maven classpath caching.
+All Tier 1/2 commands share `classpath.py:resolve_classpath()` for Maven classpath caching.
+Tier 3 commands use jdtls via multilspy — on-demand by default, or via persistent daemon (`lsp start`).
 
 ## Key files
 
 - `src/java_nav/cli.py` — entry point, wires all commands
 - `src/java_nav/classpath.py` — classpath resolution + dep source unpacking (both cached in `target/java-nav/`)
-- `src/java_nav/commands/` — one file per command
+- `src/java_nav/commands/` — one file per command (api, source, grep, deps, impls, refs, definition, find, symbols, lsp_cmd, install)
+- `src/java_nav/lsp/` — jdtls lifecycle (server.py, client.py, _daemon_proc.py)
 - `src/java_nav/jars/classgraph-scanner.jar` — bundled fat JAR for Tier 2
 - `src/java_nav/java-nav/SKILL.md` — skill template installed by `install-skill` command
 - `tools/classgraph-scanner/` — Maven project that builds the scanner JAR
@@ -72,5 +74,6 @@ uv tool install --force .
 
 ## What's not implemented yet
 
-- **Tier 3 (jdtls/LSP):** `start`, `refs`, `hierarchy`, `symbols` commands via multilspy
 - **Gradle support:** Currently Maven-only
+- **Inner class support:** `source` command doesn't handle `Foo.Bar` → `Foo.java` resolution
+- **typeHierarchy via LSP:** multilspy doesn't expose this; ClassGraph `impls`/`subtypes` covers most cases
